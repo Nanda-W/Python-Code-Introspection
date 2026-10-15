@@ -2,6 +2,7 @@ from fastapi import FastAPI, UploadFile, File, BackgroundTasks
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import importlib
+import inspect  # <-- The new module added here at the top
 import ollama
 import uvicorn
 import shutil
@@ -28,33 +29,42 @@ async def generate_readme(background_tasks: BackgroundTasks, file: UploadFile = 
     with open(file_location, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     
-    # 2. Extract structure
+    # 2. Extract the actual source code instead of just names
     module_name = file.filename.replace(".py", "")
     try:
         mod = importlib.import_module(module_name)
         importlib.reload(mod)
-        features = {attr for attr in dir(mod) if not attr.startswith("__")}
+        
+        # Get the actual code for every custom function
+        features = {}
+        for name, obj in inspect.getmembers(mod):
+            # Check if it is a function, has no underscores, AND was created in this specific file
+            if not name.startswith("__") and inspect.isfunction(obj) and inspect.getmodule(obj) == mod:
+                features[name] = inspect.getsource(obj)
+                
     except Exception as e:
         return {"error": f"Could not read python file: {str(e)}"}
         
-    # 3. Generate text with Ollama
+    # 3. Update the prompt to tell the AI it is reading real code
     prompt = (
         f"You are a technical writer. Create a detailed README.md file for a Python script.\n"
-        f"The complete list of functions and variables is: {features}.\n"
-        "Explain what a program with these functions likely does, and write a brief description for each one."
+        f"Here is the exact source code for the custom functions in this script: {features}\n"
+        "Explain what this specific code does, what parameters the functions take, and write a brief description for each one."
     )
+    
+    # 4. Generate text with Ollama
     response = ollama.generate(model='llama3.2', prompt=prompt)
     
-    # 4. Save the AI's text to a new Markdown file
+    # 5. Save the AI's text to a new Markdown file
     output_name = f"{module_name}_README.md"
     with open(output_name, "w") as output_file:
         output_file.write(response['response'])
     
-    # 5. Tell the server to delete both files AFTER the download completes
+    # 6. Tell the server to delete both files AFTER the download completes
     background_tasks.add_task(remove_file, file_location)
     background_tasks.add_task(remove_file, output_name)
     
-    # 6. Send the physical file back to the browser
+    # 7. Send the physical file back to the browser
     return FileResponse(output_name, media_type="text/markdown", filename=output_name)
 
 if __name__ == "__main__":
