@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Code Documenter</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        input, button { padding: 10px; margin: 5px; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h2>Upload a Python File for AI Documentation</h2>
+    
+    <!-- The file upload button -->
+    <input type="file" id="file-input" accept=".py">
+    <button onclick="uploadFile()">Generate README</button>
+    
+    <pre id="doc-display">Awaiting file upload...</pre>
+
+    <script>
+        async function uploadFile() {
+            // 1. Get the file the user selected
+            const fileInput = document.getElementById("file-input");
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert("Please select a Python file first.");
+                return;
+            }
+            
+            document.getElementById("doc-display").innerText = "Uploading file and asking Ollama to generate... (Please wait)";
+            
+            // 2. Package the file into a FormData object (required for file uploads)
+            const formData = new FormData();
+            formData.append("file", file);
+            
+            // 3. Send it to the Python backend
+            const response = await fetch("http://localhost:8000/generate-readme", {
+                method: "POST",
+                body: formData // Note: When using FormData, do NOT set the "Content-Type" header manually.
+            });
+            
+            // 4. Display the result
+            const data = await response.json();
+            
+            if (data.error) {
+                document.getElementById("doc-display").innerText = "Error: " + data.error;
+            } else {
+                document.getElementById("doc-display").innerText = data.readme;
+            }
+        }
+    </script>
+</body>
+</html>
