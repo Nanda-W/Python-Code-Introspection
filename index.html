@@ -20,7 +20,6 @@
 
     <script>
         async function uploadFile() {
-            // 1. Get the file the user selected
             const fileInput = document.getElementById("file-input");
             const file = fileInput.files[0];
             
@@ -29,26 +28,37 @@
                 return;
             }
             
-            document.getElementById("doc-display").innerText = "Uploading file and asking Ollama to generate... (Please wait)";
+            document.getElementById("doc-display").innerText = "Analyzing code and generating file... (Please wait)";
             
-            // 2. Package the file into a FormData object (required for file uploads)
             const formData = new FormData();
             formData.append("file", file);
             
-            // 3. Send it to the Python backend
             const response = await fetch("http://localhost:8000/generate-readme", {
                 method: "POST",
-                body: formData // Note: When using FormData, do NOT set the "Content-Type" header manually.
+                body: formData
             });
             
-            // 4. Display the result
-            const data = await response.json();
+            // Receive the data as a raw File Blob
+            const blob = await response.blob(); 
             
-            if (data.error) {
-                document.getElementById("doc-display").innerText = "Error: " + data.error;
-            } else {
-                document.getElementById("doc-display").innerText = data.readme;
-            }
+            // Create a temporary internal URL for that file
+            const downloadUrl = window.URL.createObjectURL(blob); 
+            
+            // Create an invisible HTML link, attach the file, and click it
+            const a = document.createElement('a'); 
+            a.href = downloadUrl;
+            
+            // Name the file that will save to the user's Downloads folder
+            a.download = file.name.replace(".py", "_README.md"); 
+            
+            document.body.appendChild(a);
+            a.click(); 
+            
+            // Clean up the invisible link and update the screen
+            a.remove(); 
+            window.URL.revokeObjectURL(downloadUrl);
+            
+            document.getElementById("doc-display").innerText = "Success! Check your computer's Downloads folder.";
         }
     </script>
 </body>
